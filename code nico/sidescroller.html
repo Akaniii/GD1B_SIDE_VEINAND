@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><title>Mon 1er jeu Phaser</title>
+<script
+src="//cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
+<style type="text/css"> body { margin: 0; }</style>
+</head>
+<body>
+<script type="text/javascript">
+    var config = {
+        type: Phaser.AUTO,
+        width: 1600, height: 900,
+        physics: {
+            default: 'arcade',
+            arcade: {
+                gravity: { y: 1000 },
+                debug: false
+        }},
+        input:{gamepad:true},
+        scene: {preload: preload, create: create, update: update }
+    };
+    var gamepad;
+    var gamepadButtons;
+    var bat=false;
+    var cas=false;
+    var col=false;
+    var hp=3;
+    new Phaser.Game(config);
+
+    function preload(){
+        this.load.image("background", "background.png");
+        this.load.image("Phaser_assets", "placeholderrubis.png");
+        this.load.tilemapTiledJSON("carte", "carte.json");
+        this.load.spritesheet('perso','perso.png',
+        { frameWidth: 32, frameHeight: 32    });
+        this.load.spritesheet('mechant','mechant.png', 
+        {frameWidth:32, frameHeight:32},0);
+        //item a recup
+        this.load.spritesheet("baton","baton.png", {frameWidth:32, frameHeight:32},0);
+        this.load.spritesheet("casque","casque.png", {frameWidth:32, frameHeight:32},0);
+        this.load.spritesheet("collier","collier.png", {frameWidth:32, frameHeight:32},0);
+        //UI a ces différentes etapes
+        this.load.image("uifull","uifull.png");
+        this.load.image("ui.coeur3vide","ui.coeur3vide.png");
+        this.load.image("uicoeur3batcas","uicoeur3batcas.png");
+        this.load.image("ui.coeur3bat","ui.coeur3bat.png");
+        this.load.image("uicoeur2full","uicoeur2full.png");
+        this.load.image("uicoeur2batcas","uicoeur2batcas.png");
+        this.load.image("uicoeur2bat","uicoeur2bat.png");
+        this.load.image("uicoeur2vide","uicoeur2vide.png");
+        this.load.image("uicoeur1full","uicoeur1full.png");
+        this.load.image("uicoeur1batcas","uicoeur1batcas.png");
+        this.load.image("uicoeur1bat","uicoeur1bat.png");
+        this.load.image("uicoeurvide","uicoeur1vide.png");
+        }
+
+
+    var gameOver= false;
+
+
+
+    function create (){
+        this.add.image(800,800  ,"background");
+        const carteDuNiveau = this.add.tilemap("carte");
+        const tileset = carteDuNiveau.addTilesetImage(
+          "assets",
+          "Phaser_assets"
+        );  
+        const plateformes = carteDuNiveau.createLayer(
+          "plateforme",
+          tileset
+      
+        );
+        const piques =carteDuNiveau.createLayer(
+            "piques",
+            tileset
+        );  
+         
+       
+             
+       
+          
+        plateformes.setCollisionByProperty({ estSolide: true });
+        piques.setCollisionByProperty({estSolide:true});
+        piques.setCollisionByProperty({dégats:true});
+        
+        this.player = this.physics.add.sprite(50,1300, 'perso');
+        this.player.setCollideWorldBounds(true);   
+        
+        this.physics.add.collider(this.player, plateformes);
+        this.physics.add.collider(this.player, piques, () => {
+            console.log("vous etes mort");
+            this.physics.pause();
+            gameOver=true;
+            this.player.setTint(0xFF0000);
+            
+            if(gameOver==true){
+                gameOver=false;
+                hp=3
+                location.reload()
+    }
+        });
+        
+        this.mechant=this.physics.add.staticSprite(1024,800, 'mechant');
+        this.collier=this.physics.add.staticSprite(768,64,"collier").setImmovable(true);
+        this.casque=this.physics.add.staticSprite(64,992,'casque').setImmovable(true);
+        this.baton=this.physics.add.staticSprite(840,1360,'baton').setImmovable(true);
+        this.baton.body.allowGravity=false;
+        // le baton devait permettre au joueur de faire une attaque de dégat, je n'ai pas réussi a l'implémenter
+        this.physics.add.collider(this.player, this.baton, () =>{
+            console.log("c'est un beau baton");
+            bat=true;
+            updateui
+            this.baton.destroy()
+        });
+        this.physics.add.collider(this.player, this.casque, () =>{
+            console.log("c'est un beau casque");
+            cas=true;
+            updateui
+            this.casque.destroy()
+        });
+        this.physics.add.collider(this.player, this.collier, () =>{
+            console.log("c'est un beau collier de pharaon");
+            col=true;
+            updateui
+            this.collier.destroy()
+        });
+        this.physics.add.overlap(this.player,this.baton,this.jaiunbaton, null,this);
+        this.physics.world.setBounds(0, 0, 1600, 1600); 
+        this.cameras.main.setBounds(0, 0, 1600, 1600);
+        this.cameras.main.zoom = 1.5;
+        this.cameras.main.startFollow(this.player);
+        
+        this.anims.create({
+        key: 'left',
+        frames: this.anims.generateFrameNumbers('perso', {start:0,end:3}),
+        frameRate: 9,
+        });
+        
+        this.anims.create({
+        key: 'turn',
+        frames: [ { key: 'perso', frame: 4 } ],
+        frameRate: 20
+        });
+        
+        this.anims.create({
+        key: 'right',
+        frames: this.anims.generateFrameNumbers('perso', {start:5,end:8}),
+        frameRate: 9,
+        });
+        
+        this.cursors = this.input.keyboard.createCursorKeys();
+        this.clavier = this.input.keyboard.addKeys('A,D,SPACE');
+        
+        scoreText=this.add.text(16,16,'score: 0',{fontSize:'32px',fill:'#000'});
+
+        this.anims.create({
+        key: 'mechant',
+        frames: this.anims.generateFrameNumbers('mechant', {start:0,end:1}),
+        frameRate: 4,
+        });
+        
+        this.mechant.play('mechant')
+        // cette partie en commentaire avait pour vocation de faire fonctionner le controleur manette, mais je ne sais pour quel raison il fait planter mon code
+      //this.input.gamepad.on('connected', () => {
+      //    gamepad = this.input.gamepad.pad1;
+      //    console.log("Controller connected!");
+ 
+      //    // see https://phaser.io/examples/v3/view/input/gamepad/gamepad-debug to identify the buttons indexes
+      //    gamepadButtons = {
+      //        'left': gamepad.buttons[14],
+      //        'right': gamepad.buttons[15],
+      //        'jump': gamepad.buttons[0],
+      //        'pause': gamepad.buttons[9]
+      //    };
+
+      //    gamepadConnected = true;
+      //});
+
+      //this.input.gamepad.on('disconnected', () => {
+      //    console.log("Controller disconnected!");
+      //    gamepadConnected = false;
+      //});
+
+     
+         
+    
+    }
+    
+
+    walljump =false;
+    
+
+    
+
+
+
+    function update()
+    {
+    piques=this.physics.add.group();
+
+    
+
+
+
+
+    if (gameOver){return;}
+
+    if (this.cursors.left.isDown && !this.onWallGauche && !walljump){ //si la touche gauche est appuyée
+
+            
+        this.player.setVelocityX(-160); //alors vitesse négative en X
+        this.player.anims.play('left', true); //et animation => gauche
+        
+
+
+    }
+
+    else if (this.onWallGauche && this.cursors.up.isDown){
+        walljump=true;
+        this.player.setVelocityY(-450);
+        this.player.setVelocityX(170); //alors vitesse positive en X
+        this.player.anims.play('right', true);
+        this.onWallGauche=false;
+        setTimeout(() => {
+            walljump=false;
+        }, 450);
+
+
+    }
+    
+    else if (this.cursors.right.isDown && !this.onWallGauche && !walljump){ //sinon si la touche droite est appuyée
+        this.player.setVelocityX(160); //alors vitesse positive en X
+        this.player.anims.play('right', true); //et animation => droite
+    }
+
+
+    else if (this.onWallDroit && this.cursors.up.isDown){
+        walljump=true;
+        this.player.setVelocityY(-450);
+        this.player.setVelocityX(-170); //alors vitesse positive en X
+        this.player.anims.play('left', true);
+        this.onWallDroit=false;
+        setTimeout(() => {
+            walljump=false;
+        }, 450);
+
+
+    }
+
+    else if (!walljump){ // sinon
+        this.player.setVelocityX(0); //vitesse nulle
+        this.player.anims.play('turn'); //animation fait face caméra
+    }
+
+
+
+
+
+    if (this.cursors.up.isDown && this.player.body.blocked.down){
+        //si touche haut appuyée ET que le perso touche le sol
+        this.player.setVelocityY(-450); //alors vitesse verticale négative
+
+
+
+        // hero can't jump anymore
+        this.canJump = false;
+
+        // hero is not on the wall anymore
+        this.onWallDroit = false;
+        this.onWallGauche = false;
+
+
+
+
+    }
+
+    if (this.cursors.down.isDown && !this.player.body.touching.down){ //si la touche bas est appuyée en saut
+        this.player.setVelocityY(450); 
+    } 
+
+    if(this.player.body.blocked.down){
+
+        // hero can jump
+        this.canJump = true;
+
+        // hero not on the wall
+        this.onWallDroit = false;
+        this.onWallGauche = false;
+    }
+
+
+
+    if(this.player.body.blocked.right && !this.player.body.blocked.down){
+
+        this.onWallDroit = true;
+    }
+
+
+
+    if(this.player.body.blocked.left && !this.player.body.blocked.down){
+        this.onWallGauche = true;
+        
+    }
+    
+
+     
+    function degat (hp){
+    this.physics.add.collider(this.player, this.mechant, () => {
+    console.log("vous perdez un HP");
+    this.player.setTint(0xFF0000);
+    this.mechant.destroy() 
+    });
+        if(console.log=="vous perdez un HP")
+            this.hp=-1;
+    }
+         
+   
+}
+
+// fonction visant a avoir une interface utilisateur changeante avec la progression dans le niveau, pas fonctionnel
+function updateui(){
+    if(hp=3 && bat==true && cas==true &&col==true){
+        this.uifull=this.add.image(0,0 , "uifull");
+        this.uifull.setScrollFactor(0);
+        this.uifull.setDisplaySize(800,800);
+        this.uifull.setOrigin(0,0);}
+    else if(hp=3 && bat==false && cas==false &&col==false){
+        this.uicoeur3vide=this.add.image(0,0 , "ui.coeur3vide");
+        this.uicoeur3vide.setScrollFactor(0);
+        this.uicoeur3vide.setDisplaySize(800,800);
+        this.uicoeur3vide.setOrigin(0,0);}
+    else if(hp=3 && bat==true && cas==true &&col==false){
+        this.uifull=this.add.image(0,0 , "uicoeur3batcas");
+        this.uifull.setScrollFactor(0);
+        this.uifull.setDisplaySize(800,800);
+        this.uifull.setOrigin(0,0);}
+    else if(hp=3 && bat==true && cas==false &&col==false){
+        this.uifull=this.add.image(0,0 , "ui.coeur3bat");
+        this.uifull.setScrollFactor(0);
+        this.uifull.setDisplaySize(800,800);
+        this.uifull.setOrigin(0,0);}
+    else if(hp=2 && bat==false && cas==false &&col==false){
+        this.uifull=this.add.image(0,0 , "uicoeur2vide");
+        this.uifull.setScrollFactor(0);
+        this.uifull.setDisplaySize(800,800);
+        this.uifull.setOrigin(0,0);}   
+    else if(hp=2 && bat==true && cas==false &&col==false){
+        this.uifull=this.add.image(0,0 , "uicoeur2bat");
+        this.uifull.setScrollFactor(0);
+        this.uifull.setDisplaySize(800,800);
+        this.uifull.setOrigin(0,0);}
+    else if(hp=2 && bat==false && cas==true &&col==false){
+        this.uifull=this.add.image(0,0 , "uicoeur2batcas");
+        this.uifull.setScrollFactor(0);
+        this.uifull.setDisplaySize(800,800);
+        this.uifull.setOrigin(0,0);}   
+    else if(hp=2 && bat==true && cas==true &&col==true){
+        this.uifull=this.add.image(0,0 , "uicoeur2full");
+        this.uifull.setScrollFactor(0);
+        this.uifull.setDisplaySize(800,800);
+        this.uifull.setOrigin(0,0);}   
+    else if(hp=1 && bat==false && cas==false &&col==false){
+        this.uifull=this.add.image(0,0 , "uicoeur1vide");
+        this.uifull.setScrollFactor(0);
+        this.uifull.setDisplaySize(800,800);
+        this.uifull.setOrigin(0,0);}   
+    else if(hp=1 && bat==true && cas==false &&col==false){
+        this.uifull=this.add.image(0,0 , "uicoeur1bat");
+        this.uifull.setScrollFactor(0);
+        this.uifull.setDisplaySize(800,800);
+        this.uifull.setOrigin(0,0);} 
+    else if(hp=1 && bat==true && cas==true &&col==false){
+        this.uifull=this.add.image(0,0 , "uicoeur1batcas");
+        this.uifull.setScrollFactor(0);
+        this.uifull.setDisplaySize(800,800);
+        this.uifull.setOrigin(0,0);}   
+    else if(hp=1 && bat==true && cas==true &&col==true){
+        this.uifull=this.add.image(0,0 , "uicoeur1full");
+        this.uifull.setScrollFactor(0);
+        this.uifull.setDisplaySize(800,800);
+        this.uifull.setOrigin(0,0);}
+}
+
+
+    
+</script>
+</body>
+</html>
